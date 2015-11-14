@@ -35,7 +35,7 @@ func parsePacket(packet []byte) (int, map[string][]byte, error) {
 		opcodeName := map[int]string{1: "RRQ", 2: "WRQ"}[opcode]
 
 		// grab the filename and mode strings
-		firstNull := 2 + findNull(packet[2:])
+		firstNull := findNull(packet[2:])
 		if firstNull == -1 {
 			return opcode, nil, errors.New(opcodeName + ": unable to get filename")
 		} else if firstNull == 0 {
