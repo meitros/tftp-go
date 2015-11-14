@@ -96,6 +96,16 @@ func parsePacket(packet []byte) (int, map[string][]byte, error) {
 	}
 }
 
+// the fields dict will print byte values by default. We usually want to print
+// strings
+func printableFields(fields map[string][]byte) map[string]string {
+	printable := make(map[string]string)
+	for key, value := range fields {
+		printable[key] = string(value)
+	}
+	return printable
+}
+
 /* func insertBlockNum(ack []byte, num int) {
 	//    err := binary.Write(ack, binary.LittleEndian, num)
 	n := PutUvarint(ack, num)
@@ -148,7 +158,7 @@ func main() {
 			fmt.Println("Error: ", err)
 			continue
 		}
-		fmt.Println("Recieved Packet, Opcode:", string(opcode)+",", "Fields:", fields)
+		fmt.Println("Recieved Packet, Opcode:", opcode, "Fields:", printableFields(fields))
 
 		if opcode == 2 {
 			sendAck(ServerConn, raddr, []byte(blocknum))
