@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net"
@@ -101,7 +102,11 @@ func parsePacket(packet []byte) (int, map[string][]byte, error) {
 func printableFields(fields map[string][]byte) map[string]string {
 	printable := make(map[string]string)
 	for key, value := range fields {
-		printable[key] = string(value)
+		if key == "blocknum" || key == "code" {
+			printable[key] = fmt.Sprintf("%d", binary.BigEndian.Uint16(value))
+		} else {
+			printable[key] = string(value)
+		}
 	}
 	return printable
 }
