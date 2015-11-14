@@ -1,2 +1,2 @@
 # tftp-go
-private project, ignore me
+family project, ignore
