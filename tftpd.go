@@ -18,14 +18,21 @@ type block struct {
 	buf      []byte
 }
 
+// nts = note to self
+// nts: only used in client code (RunClient / getNextCommand)
 var ServerAddress string //address of the server to connect to
 var binarymode bool      //true if the mode selected is binary. false = Default mode is Ascii
 var fSource string       //name of the file to operate on
 var fdest string         //namefunc
+
+// nts: used by ReadAChunk / SendChunk
 var chunk block
-var debugflag bool
-var ReadMode bool
 var LastBlockSent bool //true if the lastBlock in the file has been transmitted
+
+// nts: ???
+var ReadMode bool
+
+var debugflag bool
 
 func DieOnError(err error) {
 	if err != nil {
@@ -39,6 +46,10 @@ func debugPrint(msg string) {
 		fmt.Println(msg)
 	}
 }
+
+//
+// packet parsing [section]
+//
 
 // finds a null byte in n, or -1 if not present
 func findNull(n []byte) int {
@@ -62,81 +73,6 @@ func printableFields(fields map[string][]byte) map[string]string {
 		}
 	}
 	return printable
-}
-
-func sendAck(who int, conn *net.UDPConn, addr *net.UDPAddr, blocknum []byte) {
-	var err error
-	var ack = "\x00\x04"
-	//	insertBlockNum(ack[2], blocknum)
-	var res = append([]byte(ack), blocknum...)
-	fmt.Println(res, "Sending ack code ", ack, "blocknum ", blocknum)
-	if who == iAmServer {
-		_, err = conn.WriteToUDP(res, addr)
-	} else {
-		_, err = conn.Write(res)
-	}
-	if err != nil {
-		fmt.Printf("Couldn't send response %v", err)
-	}
-}
-
-func SendAChunk(conn *net.UDPConn, addr *net.UDPAddr, isServer bool) {
-	var n2 int
-	var err error
-	var datablock []byte
-	//Send the chink that we have in the Block (it is either the previous one being retransmitted or a the next one
-	var opcode = "\x00\x03" //Data packet
-	var blocknumBytes = make([]byte, 2)
-	binary.BigEndian.PutUint16(blocknumBytes, uint16(chunk.blocknum))
-
-	datablock = append(datablock, []byte(opcode)...)
-	datablock = append(datablock, blocknumBytes...)
-	fmt.Println("Stage 2: Datablock ", datablock)
-	if chunk.nbytes < 512 {
-		// make a slice of size chunk.nbytes and copy the data into it
-		tempbuf := make([]byte, chunk.nbytes)
-		n1 := copy(tempbuf, chunk.buf[0:chunk.nbytes])
-		fmt.Println("Copied %d bytes to the last chunk being sent", n1)
-		datablock = append(datablock, tempbuf...)
-	} else {
-		datablock = append(datablock, chunk.buf...)
-	}
-	fmt.Println("sending datablock", datablock)
-	if isServer {
-		n2, err = conn.WriteToUDP(datablock, addr)
-	} else {
-		n2, err = conn.Write(datablock)
-	}
-	fmt.Println("Number of Bytes sent is ", n2)
-	if err != nil {
-		fmt.Printf("Couldn't send datablock %v", err)
-	}
-}
-
-func ReadAChunk(inFile *os.File) int {
-	// make a buffer to keep chunks that are read
-	if LastBlockSent {
-		return 0
-	}
-	LastBlockSent = false
-	chunk.blocknum++
-	if chunk.blocknum > 0 {
-		mybuf := make([]byte, 512)
-		// read a chunk
-		fmt.Println("About to read Block num ", chunk.blocknum, "the handle is", inFile, "END OF HANDLE***************************")
-		n, err := inFile.Read(mybuf)
-		if err != nil && err != io.EOF {
-			panic(err)
-		}
-		chunk.nbytes = n
-		chunk.buf = mybuf
-		if n < 512 {
-			LastBlockSent = true
-		}
-		return n
-	} else {
-		return 512
-	}
 }
 
 func ParsePacket(packet []byte) (int, map[string][]byte, error) {
@@ -222,6 +158,89 @@ func ParsePacket(packet []byte) (int, map[string][]byte, error) {
 		return 0, nil, errors.New("Unknown opcode " + string(opcode))
 	}
 }
+
+//
+// Sending packets (acks, data) and reading a from file [section]
+//
+
+func sendAck(who int, conn *net.UDPConn, addr *net.UDPAddr, blocknum []byte) {
+	var err error
+	var ack = "\x00\x04"
+	//	insertBlockNum(ack[2], blocknum)
+	var res = append([]byte(ack), blocknum...)
+	fmt.Println(res, "Sending ack code ", ack, "blocknum ", blocknum)
+	if who == iAmServer {
+		_, err = conn.WriteToUDP(res, addr)
+	} else {
+		_, err = conn.Write(res)
+	}
+	if err != nil {
+		fmt.Printf("Couldn't send response %v", err)
+	}
+}
+
+func SendAChunk(conn *net.UDPConn, addr *net.UDPAddr, isServer bool) {
+	var n2 int
+	var err error
+	var datablock []byte
+	//Send the chink that we have in the Block (it is either the previous one being retransmitted or a the next one
+	var opcode = "\x00\x03" //Data packet
+	var blocknumBytes = make([]byte, 2)
+	binary.BigEndian.PutUint16(blocknumBytes, uint16(chunk.blocknum))
+
+	datablock = append(datablock, []byte(opcode)...)
+	datablock = append(datablock, blocknumBytes...)
+	fmt.Println("Stage 2: Datablock ", datablock)
+	if chunk.nbytes < 512 {
+		// make a slice of size chunk.nbytes and copy the data into it
+		tempbuf := make([]byte, chunk.nbytes)
+		n1 := copy(tempbuf, chunk.buf[0:chunk.nbytes])
+		fmt.Println("Copied %d bytes to the last chunk being sent", n1)
+		datablock = append(datablock, tempbuf...)
+	} else {
+		datablock = append(datablock, chunk.buf...)
+	}
+	fmt.Println("sending datablock", datablock)
+	if isServer {
+		n2, err = conn.WriteToUDP(datablock, addr)
+	} else {
+		n2, err = conn.Write(datablock)
+	}
+	fmt.Println("Number of Bytes sent is ", n2)
+	if err != nil {
+		fmt.Printf("Couldn't send datablock %v", err)
+	}
+}
+
+func ReadAChunk(inFile *os.File) int {
+	// make a buffer to keep chunks that are read
+	if LastBlockSent {
+		return 0
+	}
+	LastBlockSent = false
+	chunk.blocknum++
+	if chunk.blocknum > 0 {
+		mybuf := make([]byte, 512)
+		// read a chunk
+		fmt.Println("About to read Block num ", chunk.blocknum, "the handle is", inFile, "END OF HANDLE***************************")
+		n, err := inFile.Read(mybuf)
+		if err != nil && err != io.EOF {
+			panic(err)
+		}
+		chunk.nbytes = n
+		chunk.buf = mybuf
+		if n < 512 {
+			LastBlockSent = true
+		}
+		return n
+	} else {
+		return 512
+	}
+}
+
+//
+// Client/Server functions
+//
 
 func RunServer() {
 	var port string
@@ -527,7 +546,7 @@ func getNextCommand() int {
 func main() {
 	n := len(os.Args)
 
-	// The second argument will be client or Server and the third argument is optional and can be Debug
+	// The second argument will be client or server and the third argument is optional and can be debug
 	isServer := false
 	if strings.Compare(os.Args[1], "client") == 0 {
 		// nothing to do
