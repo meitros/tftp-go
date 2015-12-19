@@ -22,10 +22,8 @@ const iAmServer, iAmClient = 1, 2
 
 var ServerAddress string //address of the server to connect to
 var binarymode bool      //true if the mode selected is binary. false = Default mode is Ascii
-var Action int           //Either Get=1, or put=2
 var fSource string       //name of the file to operate on
 var fdest string         //namefunc
-var WhatAmI int          //will be assigned either iAmServer ot iAmClient
 var chunk block
 var debugflag bool
 var ReadMode bool
@@ -85,7 +83,7 @@ func sendAck(who int, conn *net.UDPConn, addr *net.UDPAddr, blocknum []byte) {
 	}
 }
 
-func SendAChunk(conn *net.UDPConn, addr *net.UDPAddr) {
+func SendAChunk(conn *net.UDPConn, addr *net.UDPAddr, isServer bool) {
 	var n2 int
 	var err error
 	var datablock []byte
@@ -107,7 +105,7 @@ func SendAChunk(conn *net.UDPConn, addr *net.UDPAddr) {
 		datablock = append(datablock, chunk.buf...)
 	}
 	fmt.Println("sending datablock", datablock)
-	if WhatAmI == iAmServer {
+	if isServer {
 		n2, err = conn.WriteToUDP(datablock, addr)
 	} else {
 		n2, err = conn.Write(datablock)
@@ -305,7 +303,7 @@ func RunServer() {
 			if e.Timeout() {
 				//We timed out retransmit the block
 				fmt.Println("We timed out, quitting")
-				SendAChunk(ServerConn, raddr)
+				SendAChunk(ServerConn, raddr, true)
 			}
 		}
 		opcode, fields, err := parsePacket(buf[0:n])
@@ -332,7 +330,7 @@ func RunServer() {
 			debugPrint("File loaded, going to read chunk")
 			n := ReadAChunk(inFile)
 			fmt.Println("Read chunk with ", n, " bytes")
-			SendAChunk(ServerConn, raddr)
+			SendAChunk(ServerConn, raddr, true)
 		}
 		if opcode == 2 {
 			debugPrint("Processing opcode 2")
@@ -368,7 +366,7 @@ func RunServer() {
 			n := ReadAChunk(inFile)
 			fmt.Println("Read chunk with ", n, " bytes")
 			if n > 0 {
-				SendAChunk(ServerConn, raddr)
+				SendAChunk(ServerConn, raddr, true)
 			} else {
 				fmt.Println("File is all transmitted")
 				os.Exit(0)
@@ -518,7 +516,7 @@ func RunClient() {
 			n := ReadAChunk(inFile)
 			fmt.Println("Read chunk with ", n, " bytes")
 			if n > 0 {
-				SendAChunk(ServerConn, raddr)
+				SendAChunk(ServerConn, raddr, false)
 			} else {
 				fmt.Println("File is all transmitted")
 				os.Exit(0)
@@ -569,12 +567,14 @@ func main() {
 		fmt.Println(os.Args[i])
 	}
 	// The second argument will be client or Server and the third argument is optional and can be Debug
+
+	var WhatAmI int // will be assigned either iAmServer ot iAmClient
 	if strings.Compare(os.Args[1], "client") == 0 {
 		WhatAmI = iAmClient
 	} else if strings.Compare(os.Args[1], "server") == 0 {
 		WhatAmI = iAmServer
 	} else {
-		fmt.Println("Unknown command: Expecting either Client or Server")
+		fmt.Println("Unknown command: Expecting either client or server")
 		os.Exit(0)
 	}
 	debugflag = false
