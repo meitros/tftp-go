@@ -142,7 +142,7 @@ func ReadAChunk(inFile *os.File) int {
 	}
 }
 
-func parsePacket(packet []byte) (int, map[string][]byte, error) {
+func ParsePacket(packet []byte) (int, map[string][]byte, error) {
 	// TODO: parse more robustly?
 	switch opcode := int(packet[1]); opcode {
 	case 1:
@@ -226,44 +226,10 @@ func parsePacket(packet []byte) (int, map[string][]byte, error) {
 	}
 }
 
-func ParseArgs(args []string) {
-	nargs := len(args)
-	i := 1 //start extracting from second position, the 1st position is the name of the program
-	// If we are debugging the first argument has to be -d
-	debugflag = false
-	if strings.Compare(strings.ToLower(args[i]), "-d") == 0 {
-		i++
-		debugflag = true
-	}
-
-	// Let us check if there is the optional argument -i
-	binarymode = false
-	if strings.Compare(strings.ToLower(args[i]), "-i") == 0 {
-		i++
-		binarymode = true
-	}
-	//pick up the server address
-	ServerAddress = args[i]
-	i++
-	// pick up get or put
-	fmt.Println(os.Args[i], strings.ToLower(os.Args[i]))
-	if strings.Compare(strings.ToLower(os.Args[i]), "get") == 0 {
-		ReadMode = true
-	} else {
-		ReadMode = false
-	}
-	i++
-
-	//pick up the filename
-	fSource = args[i]
-	i++
-	if i < nargs { //we also have the destination file name
-		fdest = args[i]
-	}
-	return
-}
-
 func RunServer() {
+	fmt.Print("Enter the port to use:")
+	fmt.Scanln(&port)
+
 	var inFile *os.File
 	var outFile *os.File
 
@@ -306,7 +272,7 @@ func RunServer() {
 				SendAChunk(ServerConn, raddr, true)
 			}
 		}
-		opcode, fields, err := parsePacket(buf[0:n])
+		opcode, fields, err := ParsePacket(buf[0:n])
 		if err != nil {
 			fmt.Println("Error: ", err)
 			continue
@@ -459,7 +425,7 @@ func RunClient() {
 						SendAChunk(ServerConn, raddr)
 					} */
 		}
-		opcode, fields, err := parsePacket(buf[0:n])
+		opcode, fields, err := ParsePacket(buf[0:n])
 		if err != nil {
 			fmt.Println("Error: ", err)
 			continue
@@ -525,6 +491,7 @@ func RunClient() {
 		}
 	}
 }
+
 func getNextCommand() int {
 	//Prompt for next action
 	sMode := ""
@@ -557,70 +524,33 @@ func getNextCommand() int {
 		return (0)
 	}
 }
-func main() {
-	//	var inFile *os.File
-	//	var err error
-	n := len(os.Args)
-	myID := [2]string{"I am a server", "I am a client"}
-	fmt.Println("No. of command line args are ", n)
-	for i := 0; i < n; i++ {
-		fmt.Println(os.Args[i])
-	}
-	// The second argument will be client or Server and the third argument is optional and can be Debug
 
-	var WhatAmI int // will be assigned either iAmServer ot iAmClient
+func main() {
+	n := len(os.Args)
+
+	// The second argument will be client or Server and the third argument is optional and can be Debug
+	isServer := false
 	if strings.Compare(os.Args[1], "client") == 0 {
-		WhatAmI = iAmClient
+		// nothing to do
 	} else if strings.Compare(os.Args[1], "server") == 0 {
-		WhatAmI = iAmServer
+		isServer = true
 	} else {
 		fmt.Println("Unknown command: Expecting either client or server")
 		os.Exit(0)
 	}
+
 	debugflag = false
 	if n > 2 {
 		if strings.Compare(os.Args[1], "debug") == 0 {
 			debugflag = true
 		}
 	}
-	/*	if n > 3 {
-			// we areclient
-			WhatAmI = iAmClient
-			ParseArgs(os.Args)
-		} else {
-			WhatAmI = iAmServer
-			port = os.Args[1]
-			debugflag = false
-			if n == 3 {
-				if strings.Compare(os.Args[2], "debug") == 0 {
-					debugflag = true
-				}
-			}
-		}
-	*/
-	fmt.Println(myID[WhatAmI-1])
-	/*	if WhatAmI == iAmServer {
-		fmt.Println("Server listening on port number",port)
-		} else {
-			fmt.Println("BinaryMode:",binarymode)
-			fmt.Println("Debug Mode is ",debugflag)
-			fmt.Println("Server to connect to ",ServerAddress)
-			if ReadMode {
-			  fmt.Println("Action: GET")
-			  } else {
-			  fmt.Println("Action: PUT")
-			  }
-			fmt.Println("Source file name: ",fSource)
-			fmt.Println("Destination file name: ",fdest)
-			}
-	*/
-	if WhatAmI == iAmServer {
-		fmt.Println("Just about to call RunServer")
-		fmt.Print("Enter the p[ort to use:")
-		fmt.Scanln(&port)
+
+	if isServer {
 		RunServer()
 	} else {
 		for {
+			// TODO: move shell code inside RunClient
 			action := getNextCommand()
 			if action == -1 {
 				fmt.Println("Client finished session, Goodbye")
