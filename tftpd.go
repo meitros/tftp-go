@@ -79,16 +79,12 @@ func ParsePacket(packet []byte) (int, map[string][]byte, error) {
 	// TODO: parse more robustly?
 	switch opcode := int(packet[1]); opcode {
 	case 1:
-		ReadMode = true
 		// RRQ: Read Request
 		fallthrough // parsing this is identical to WRQ
 	case 2:
 		// WRQ: Write Request
 		opcodeName := map[int]string{1: "RRQ", 2: "WRQ"}[opcode]
 
-		if ReadMode && opcode != 1 {
-			fmt.Println("The opcode received was unexpected")
-		}
 		// grab the filename and mode strings
 		firstNull := findNull(packet[2:])
 		if firstNull == -1 {
@@ -109,14 +105,6 @@ func ParsePacket(packet []byte) (int, map[string][]byte, error) {
 		secondNull += firstNull + 1 // again, add starting position
 		mode := packet[firstNull+1 : secondNull]
 
-		// set the transferMode variable
-		/*		if bytes.Equal(mode,[]byte("NetAscii")) {
-					transferMode =NETASCII
-				}
-				transferMode = NETASCII
-				if byies.Equal(mode,[]byte("Binary")) {
-					transferMode = BINARY
-				} */
 		fields := map[string][]byte{
 			"filename": filename,
 			"mode":     mode,
@@ -448,6 +436,7 @@ func RunClient() {
 			fmt.Println("Error: ", err)
 			continue
 		}
+
 		fmt.Println("Recieved Packet, Opcode:", opcode, "Fields:", printableFields(fields))
 		// We are a client so we only expect an opcode 3(Data), opcode 4 (achknowledgement) or opcode 5 (error), opcode 1 and 2 are invalid
 		if opcode == 1 || opcode == 2 {
