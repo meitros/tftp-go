@@ -18,8 +18,6 @@ type block struct {
 	buf      []byte
 }
 
-const iAmServer, iAmClient = 1, 2
-
 var ServerAddress string //address of the server to connect to
 var binarymode bool      //true if the mode selected is binary. false = Default mode is Ascii
 var fSource string       //name of the file to operate on
@@ -27,7 +25,6 @@ var fdest string         //namefunc
 var chunk block
 var debugflag bool
 var ReadMode bool
-var port string
 var LastBlockSent bool //true if the lastBlock in the file has been transmitted
 
 func DieOnError(err error) {
@@ -54,7 +51,7 @@ func findNull(n []byte) int {
 }
 
 // the fields dict will print byte values by default. We usually want to print
-// strings
+// strings (for debugging purposes)
 func printableFields(fields map[string][]byte) map[string]string {
 	printable := make(map[string]string)
 	for key, value := range fields {
@@ -227,6 +224,8 @@ func ParsePacket(packet []byte) (int, map[string][]byte, error) {
 }
 
 func RunServer() {
+	var port string
+
 	fmt.Print("Enter the port to use:")
 	fmt.Scanln(&port)
 
